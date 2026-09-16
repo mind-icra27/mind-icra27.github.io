@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>MIND: Instruction-Conditioned Incremental Grounding for Robots</title>
+<meta name="robots" content="noindex">
+<style>
+ :root{--ink:#16181d;--mut:#5c6370;--line:#e2e5ea;--acc:#1a4d8f}
+ *{box-sizing:border-box}
+ body{margin:0;font:17.5px/1.62 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;color:var(--ink);background:#fff}
+ .wrap{max-width:940px;margin:0 auto;padding:0 24px}
+ header{padding:58px 0 28px;border-bottom:1px solid var(--line);text-align:center}
+ h1{font-size:34px;line-height:1.22;margin:0 0 12px;font-weight:650}
+ .sub{color:var(--mut);font-size:17px}
+ h2{font-size:25px;margin:52px 0 12px;font-weight:600}
+ p{margin:0 0 16px}
+ .lead{color:var(--mut);margin:0 0 20px}
+ .tw{overflow-x:auto;margin:18px 0 8px}
+ table{border-collapse:collapse;width:100%;min-width:540px;font-size:17px}
+ th,td{border-bottom:1px solid var(--line);padding:11px 12px;text-align:left;vertical-align:top}
+ th{font-weight:600;background:#fafbfc}
+ td.n{white-space:nowrap;font-variant-numeric:tabular-nums}
+ .note{color:var(--mut);font-size:16px}
+ figure{margin:26px 0}
+ figure img{width:100%;display:block;background:#fff;padding:14px;border:1px solid var(--line);border-radius:6px}
+ figure.narrow img{max-width:660px;margin:0 auto}
+ figure.narrow figcaption{max-width:660px;margin-left:auto;margin-right:auto}
+ video{width:100%;border:1px solid var(--line);border-radius:6px;background:#000;display:block}
+ figcaption{color:#41464f;font-size:16px;margin-top:10px}
+ a{color:var(--acc)}
+ details{margin:26px 0;border-top:1px solid var(--line);padding-top:14px}
+ summary{cursor:pointer;font-weight:600;color:var(--acc);font-size:17px}
+ footer{margin:58px 0 44px;padding-top:20px;border-top:1px solid var(--line);color:var(--mut);font-size:16px;text-align:center}
+ @media(max-width:600px){body{font-size:16.5px}h1{font-size:26px}h2{font-size:22px}figure img{padding:10px}}
+</style></head><body>
+<header><div class="wrap">
+ <h1>MIND: Instruction-Conditioned Incremental Grounding for Robots</h1>
+ <div class="sub">Anonymous submission to ICRA 2027</div>
+</div></header>
+<div class="wrap">
+
+<h2>The problem</h2>
+<p>A robot carrying out one instruction while the world changes has to decide which of its cached
+room judgments still hold. Rechecking every room after every event is wasteful. Reusing every
+judgment sends the robot after a target that is gone.</p>
+<p>MIND makes roughly a third as many language model calls as full recomputation and changes none
+of the 1,200 decisions it was tested on.</p>
+
+<figure class="narrow"><img src="media/fig_idea.png" alt="One instruction across three world states in a
+four-room house, with the number of rooms judged at each step.">
+<figcaption>Grounding judges every room. A move changes the ranking but no room's verdict. A mug
+being taken changes one room. Full recomputation would judge all four every time.</figcaption>
+</figure>
+
+<h2>How it works</h2>
+<figure><img src="media/fig_arch.png" alt="The instruction is compiled once into a dependency
+signature; each event produces a footprint; their intersection names the rooms to re-evaluate.">
+<figcaption><b>A</b> compiles the instruction once into the variables that decide qualification
+and selection. <b>B</b> describes each event by the variable it changed and the rooms it touched.
+<b>C</b> intersects the two, which names the only rooms worth rechecking. <b>D</b> reuses every
+untouched judgment and recomputes reachability and selection deterministically, at no model
+cost.</figcaption>
+</figure>
+
+<h2>Hardware: Unitree G1</h2>
+<p class="lead">Three of the four scenarios run on one layout, 26 scored runs in total.
+Decision, navigation and perception are scored separately, so a detector miss is never counted as a
+decision error.</p>
+
+<figure><img src="media/fig_g1.png" alt="The Unitree G1, a ceiling view of the four-zone
+laboratory with the path of one run, and four camera views with their evaluation counts.">
+<figcaption>Scenario 2, <em>the nearest thing to sit on</em>. Three evaluations select zone C. When
+the operator drives the robot into zone A, the target re-ranks on position alone and no room is
+judged again.</figcaption></figure>
+
+<div class="tw">
+<table>
+<tr><th>Scenario</th><th>Request</th><th>What it tests</th><th>Evaluations, MIND vs full</th></tr>
+<tr><td>1</td><td><em>something to sit on</em></td><td>a move invalidates nothing</td><td class="n"><b>3</b> vs 9</td></tr>
+<tr><td>2</td><td><em>the nearest thing to sit on</em></td><td>a move re-ranks at no semantic cost</td><td class="n"><b>3</b> vs 9</td></tr>
+<tr><td>4</td><td>barrier, then the chair removed</td><td>two variables, two footprints, abstention</td><td class="n"><b>4</b> vs 15 to 18</td></tr>
+</table>
+</div>
+
+<figure><video controls preload="metadata" src="media/hw_s1_mind.mp4"></video>
+<figcaption><b>Scenario 1, MIND.</b> Three evaluations at the start and none after.</figcaption></figure>
+
+<details>
+<summary>The same scenario under full recomputation</summary>
+
+<figure><video controls preload="metadata" src="media/hw_s1_full.mp4"></video>
+<figcaption><b>Scenario 1, full recomputation.</b> Same answer, nine evaluations.</figcaption></figure>
+
+</details>
+
+<h2>Numbers</h2>
+<p class="lead">One evaluation is one language model call asking whether a room satisfies the
+request.</p>
+
+<div class="tw">
+<table>
+<tr><th>Setting</th><th>Decisions preserved</th><th class="n">Full</th><th class="n">MIND</th></tr>
+<tr><td>240 five-event ProcTHOR sequences</td><td>1,200 of 1,200</td><td class="n">30.6</td><td class="n"><b>11.2</b></td></tr>
+<tr><td>Frozen Phi-4 judge</td><td>1,200 of 1,200</td><td class="n">30.6</td><td class="n"><b>11.2</b></td></tr>
+<tr><td>Frozen Qwen3-14B judge</td><td>1,200 of 1,200</td><td class="n">30.6</td><td class="n"><b>11.2</b></td></tr>
+<tr><td>32 closed-loop AI2-THOR episodes</td><td>32 of 32 final targets</td><td class="n">26.00</td><td class="n"><b>10.47</b></td></tr>
+</table>
+</div>
+<p class="note">Reuse on its own is not enough. A static inventory-only rule agrees with full
+recomputation on 0.958 and 0.983 of decisions under the two frozen judges, against 1.000 here.</p>
+
+<h2>Code and benchmarks</h2>
+<p>Generators, prompts, frozen manifests, model configurations and the result logs behind every
+table: <a href="https://anonymous.4open.science/r/mind-icra27">anonymous.4open.science/r/mind-icra27</a></p>
+
+<footer>No paper PDF is posted during review.</footer>
+</div></body></html>
